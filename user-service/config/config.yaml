@@ -1,0 +1,20 @@
+server:
+  port: 8081
+
+database:
+  host: localhost
+  port: 3307
+  user: root
+  password: root123
+  dbname: user_db
+  charset: utf8mb4
+
+redis:
+  host: localhost
+  port: 6380
+  password: ""
+  db: 0
+
+jwt:
+  secret: "change-this-in-production"
+  expire: 24
