@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"user-service/internal/bootstrap"
 	"user-service/internal/handler"
@@ -25,6 +26,11 @@ func main() {
 
 	r := router.New(userHandler, jwtManager)
 	addr := fmt.Sprintf(":%d", app.Config.Server.Port)
+	instanceID := os.Getenv("INSTANCE_ID")
+	if instanceID == "" {
+		instanceID = "user-service"
+	}
+	log.Printf("starting server instance=%s addr=%s", instanceID, addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("start server failed: %v", err)
 	}

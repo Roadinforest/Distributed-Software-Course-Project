@@ -14,3 +14,6 @@ bin/
 
 # OS
 .DS_Store
+
+# Docs
+doc/
