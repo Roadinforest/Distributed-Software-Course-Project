@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分布式软件课程项目</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>欢迎访问</h1>
+            <p class="subtitle">分布式软件课程实验系统</p>
+        </header>
+
+        <main>
+            <section class="info-section">
+                <h2>系统信息</h2>
+                <div id="systemInfo" class="info-box">
+                    <p>正在加载...</p>
+                </div>
+            </section>
+
+            <section class="user-section">
+                <h2>用户服务</h2>
+                <div class="form-group">
+                    <input type="text" id="username" placeholder="用户名" />
+                    <input type="password" id="password" placeholder="密码" />
+                </div>
+                <div class="button-group">
+                    <button onclick="register()">注册</button>
+                    <button onclick="login()">登录</button>
+                </div>
+                <div id="userResult" class="result-box"></div>
+            </section>
+
+            <section class="product-section">
+                <h2>商品服务</h2>
+                <div class="form-group">
+                    <input type="number" id="productId" placeholder="商品ID" />
+                </div>
+                <div class="button-group">
+                    <button onclick="getProduct()">获取商品详情</button>
+                </div>
+                <div id="productResult" class="result-box"></div>
+            </section>
+
+            <section class="test-section">
+                <h2>负载均衡测试</h2>
+                <div class="button-group">
+                    <button onclick="testLoadBalance()">发送测试请求</button>
+                </div>
+                <div id="lbResult" class="result-box"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>实例: <span id="instanceInfo"></span></p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

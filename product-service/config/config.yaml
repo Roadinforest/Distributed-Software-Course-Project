@@ -1,0 +1,22 @@
+server:
+  port: 8083
+
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: root123
+  dbname: product_db
+  charset: utf8mb4
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+cache:
+  ttl: 300           # 缓存基础TTL(秒)
+  max_ttl: 600       # 缓存最大TTL(秒)
+  null_ttl: 60        # 空值缓存TTL(秒) - 用于防止缓存穿透
+  enable_random: true # 是否添加随机TTL - 用于防止缓存雪崩
