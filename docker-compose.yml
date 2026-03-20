@@ -19,7 +19,8 @@ services:
     networks:
       - app-net
 
-  mysql-product:
+  # MySQL 主库(商品) - 负责写操作
+  mysql-master:
     image: mysql:8.0
     restart: unless-stopped
     environment:
@@ -27,15 +28,71 @@ services:
       MYSQL_DATABASE: product_db
     ports:
       - "3308:3306"
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    command: [
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci",
+      "--server-id=1",
+      "--log-bin=mysql-bin",
+      "--binlog-format=ROW",
+      "--gtid-mode=ON",
+      "--enforce-gtid-consistency=ON"
+    ]
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
     volumes:
-      - mysql-product-data:/var/lib/mysql
+      - mysql-master-data:/var/lib/mysql
+      - ./mysql/setup-replication.sql:/docker-entrypoint-initdb.d/01-setup-replication.sql:ro
+    networks:
+      - app-net
+
+  # MySQL 从库(商品) - 负责读操作
+  mysql-slave:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: product_db
+    ports:
+      - "3309:3306"
+    command: [
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci",
+      "--server-id=2",
+      "--relay-log=relay-bin",
+      "--log-slave-updates=1",
+      "--read-only=1",
+      "--gtid-mode=ON",
+      "--enforce-gtid-consistency=ON"
+    ]
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - mysql-slave-data:/var/lib/mysql
+    networks:
+      - app-net
+
+  # MySQL 主从复制配置器
+  mysql-replication-setup:
+    image: mysql:8.0
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave:
+        condition: service_healthy
+    volumes:
+      - ./mysql/setup-slave.sh:/setup-slave.sh:ro
+    command: ["sh", "-c", "sleep 15 && sh /setup-slave.sh"]
     networks:
       - app-net
 
@@ -117,6 +174,7 @@ services:
     networks:
       - app-net
 
+  # 商品服务1 - 读写分离模式
   product-service-1:
     build:
       context: ./product-service
@@ -124,16 +182,26 @@ services:
         GOPROXY: https://goproxy.cn,direct
     restart: unless-stopped
     environment:
-      PRODUCT_SVC_DATABASE_HOST: mysql-product
+      # 写库(主库)
+      PRODUCT_SVC_DATABASE_HOST: mysql-master
       PRODUCT_SVC_DATABASE_PORT: 3306
       PRODUCT_SVC_DATABASE_USER: root
       PRODUCT_SVC_DATABASE_PASSWORD: root123
       PRODUCT_SVC_DATABASE_DBNAME: product_db
+      # 读库(从库)
+      PRODUCT_SVC_DATABASE_READ_HOST: mysql-slave
+      PRODUCT_SVC_DATABASE_READ_PORT: 3306
+      PRODUCT_SVC_DATABASE_READ_USER: root
+      PRODUCT_SVC_DATABASE_READ_PASSWORD: root123
+      PRODUCT_SVC_DATABASE_READ_DBNAME: product_db
+      # Redis
       PRODUCT_SVC_REDIS_HOST: redis
       PRODUCT_SVC_REDIS_PORT: 6379
       INSTANCE_ID: product-service-1
     depends_on:
-      mysql-product:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -148,6 +216,7 @@ services:
     networks:
       - app-net
 
+  # 商品服务2 - 读写分离模式
   product-service-2:
     build:
       context: ./product-service
@@ -155,16 +224,26 @@ services:
         GOPROXY: https://goproxy.cn,direct
     restart: unless-stopped
     environment:
-      PRODUCT_SVC_DATABASE_HOST: mysql-product
+      # 写库(主库)
+      PRODUCT_SVC_DATABASE_HOST: mysql-master
       PRODUCT_SVC_DATABASE_PORT: 3306
       PRODUCT_SVC_DATABASE_USER: root
       PRODUCT_SVC_DATABASE_PASSWORD: root123
       PRODUCT_SVC_DATABASE_DBNAME: product_db
+      # 读库(从库)
+      PRODUCT_SVC_DATABASE_READ_HOST: mysql-slave
+      PRODUCT_SVC_DATABASE_READ_PORT: 3306
+      PRODUCT_SVC_DATABASE_READ_USER: root
+      PRODUCT_SVC_DATABASE_READ_PASSWORD: root123
+      PRODUCT_SVC_DATABASE_READ_DBNAME: product_db
+      # Redis
       PRODUCT_SVC_REDIS_HOST: redis
       PRODUCT_SVC_REDIS_PORT: 6379
       INSTANCE_ID: product-service-2
     depends_on:
-      mysql-product:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -202,7 +281,8 @@ services:
 
 volumes:
   mysql-data:
-  mysql-product-data:
+  mysql-master-data:
+  mysql-slave-data:
   redis-data:
 
 networks:
