@@ -18,7 +18,8 @@ func main() {
 		log.Fatalf("initialize app failed: %v", err)
 	}
 
-	productRepo := repository.NewProductRepository(app.DB)
+	// 传入主库和从库连接
+	productRepo := repository.NewProductRepository(app.DB, app.DBRead)
 	productService := service.NewProductService(productRepo, app.Redis, app.Config)
 	productHandler := handler.NewProductHandler(productService)
 
@@ -29,6 +30,7 @@ func main() {
 		instanceID = "product-service"
 	}
 	log.Printf("starting server instance=%s addr=%s", instanceID, addr)
+	log.Printf("database: master=%s, slave=%s", app.Config.Database.Host, app.Config.Database.ReadHost)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("start server failed: %v", err)
 	}

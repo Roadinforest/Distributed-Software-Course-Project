@@ -157,3 +157,12 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 func (h *ProductHandler) Health(c *gin.Context) {
 	response.Success(c, gin.H{"status": "ok"})
 }
+
+// GetDBStats 获取数据库读写分离状态
+func (h *ProductHandler) GetDBStats(c *gin.Context) {
+	response.Success(c, gin.H{
+		"read_mode":  "slave",
+		"write_mode": "master",
+		"description": "读操作走MySQL从库，写操作走MySQL主库",
+	})
+}

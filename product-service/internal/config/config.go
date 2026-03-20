@@ -25,6 +25,13 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	DBName   string `mapstructure:"dbname"`
 	Charset  string `mapstructure:"charset"`
+
+	// 读写分离配置 - 从库
+	ReadHost     string `mapstructure:"read_host"`
+	ReadPort     int    `mapstructure:"read_port"`
+	ReadUser     string `mapstructure:"read_user"`
+	ReadPassword string `mapstructure:"read_password"`
+	ReadDBName   string `mapstructure:"read_dbname"`
 }
 
 type RedisConfig struct {
@@ -47,6 +54,19 @@ func (d DatabaseConfig) DSN() string {
 		charset = "utf8mb4"
 	}
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local", d.User, d.Password, d.Host, d.Port, d.DBName, charset)
+}
+
+// ReadDSN 返回从库(读库)的DSN
+func (d DatabaseConfig) ReadDSN() string {
+	// 如果没有配置从库，使用主库
+	if d.ReadHost == "" {
+		return d.DSN()
+	}
+	charset := d.Charset
+	if charset == "" {
+		charset = "utf8mb4"
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local", d.ReadUser, d.ReadPassword, d.ReadHost, d.ReadPort, d.ReadDBName, charset)
 }
 
 func (r RedisConfig) Addr() string {

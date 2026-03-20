@@ -21,7 +21,8 @@ const (
 
 type App struct {
 	Config *config.Config
-	DB     *gorm.DB
+	DB     *gorm.DB       // 主库 - 写操作
+	DBRead *gorm.DB      // 从库 - 读操作
 	Redis  *redis.Client
 }
 
@@ -31,13 +32,22 @@ func Initialize(configPath string) (*App, error) {
 		return nil, err
 	}
 
+	// 连接主库(写库)
 	db, err := connectMySQLWithRetry(cfg.Database.DSN())
 	if err != nil {
-		return nil, fmt.Errorf("connect mysql failed: %w", err)
+		return nil, fmt.Errorf("connect mysql master failed: %w", err)
 	}
 
+	// 在主库上执行迁移
 	if err := db.AutoMigrate(&model.Product{}); err != nil {
 		return nil, fmt.Errorf("auto migrate failed: %w", err)
+	}
+
+	// 连接从库(读库)
+	dbRead, err := connectMySQLWithRetry(cfg.Database.ReadDSN())
+	if err != nil {
+		log.Printf("warning: connect mysql slave failed: %v, will use master for reads", err)
+		dbRead = db // 降级使用主库
 	}
 
 	redisClient := redis.NewClient(&redis.Options{
@@ -53,9 +63,10 @@ func Initialize(configPath string) (*App, error) {
 	}
 
 	return &App{
-		Config: cfg,
-		DB:     db,
-		Redis:  redisClient,
+		Config:  cfg,
+		DB:      db,
+		DBRead:  dbRead,
+		Redis:   redisClient,
 	}, nil
 }
 

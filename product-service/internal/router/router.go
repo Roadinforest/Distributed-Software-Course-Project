@@ -32,6 +32,9 @@ func New(productHandler *handler.ProductHandler) *gin.Engine {
 			products.PUT("/:id", productHandler.UpdateProduct)
 			products.DELETE("/:id", productHandler.DeleteProduct)
 		}
+
+		// 读写分离状态查询
+		api.GET("/db-stats", productHandler.GetDBStats)
 	}
 
 	return r

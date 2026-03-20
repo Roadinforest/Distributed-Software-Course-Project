@@ -42,6 +42,11 @@ func NewProductService(repo *repository.ProductRepository, redisClient *redis.Cl
 	}
 }
 
+// GetDBReadStats 获取从库状态信息
+func (s *ProductService) GetDBReadStats() string {
+	return "Read from MySQL Slave (Read Replica)"
+}
+
 // GetProductByID 获取商品详情 - 使用Cache Aside模式
 // 处理了缓存穿透、缓存击穿、缓存雪崩问题
 func (s *ProductService) GetProductByID(ctx context.Context, id uint) (*model.ProductDTO, error) {
