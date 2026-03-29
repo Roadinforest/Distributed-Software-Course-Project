@@ -112,6 +112,65 @@ services:
     networks:
       - app-net
 
+  # Zookeeper - Kafka依赖
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-net
+
+  # Kafka - 消息队列
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - app-net
+
+  # 订单数据库
+  mysql-order:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: order_db
+    ports:
+      - "3310:3306"
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - mysql-order-data:/var/lib/mysql
+      - ./mysql/init-order.sql:/docker-entrypoint-initdb.d/init-order.sql:ro
+    networks:
+      - app-net
+
   user-service-1:
     build:
       context: ./user-service
@@ -258,6 +317,76 @@ services:
     networks:
       - app-net
 
+  # 订单服务1
+  order-service-1:
+    build:
+      context: ./order-service
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    restart: unless-stopped
+    environment:
+      ORDER_SVC_DATABASE_HOST: mysql-order
+      ORDER_SVC_DATABASE_PORT: 3306
+      ORDER_SVC_DATABASE_USER: root
+      ORDER_SVC_DATABASE_PASSWORD: root123
+      ORDER_SVC_DATABASE_DBNAME: order_db
+      ORDER_SVC_REDIS_HOST: redis
+      ORDER_SVC_REDIS_PORT: 6379
+      ORDER_SVC_KAFKA_BROKERS: kafka:9092
+      INSTANCE_ID: order-service-1
+    depends_on:
+      mysql-order:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8085/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app-net
+
+  # 订单服务2
+  order-service-2:
+    build:
+      context: ./order-service
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    restart: unless-stopped
+    environment:
+      ORDER_SVC_DATABASE_HOST: mysql-order
+      ORDER_SVC_DATABASE_PORT: 3306
+      ORDER_SVC_DATABASE_USER: root
+      ORDER_SVC_DATABASE_PASSWORD: root123
+      ORDER_SVC_DATABASE_DBNAME: order_db
+      ORDER_SVC_REDIS_HOST: redis
+      ORDER_SVC_REDIS_PORT: 6379
+      ORDER_SVC_KAFKA_BROKERS: kafka:9092
+      INSTANCE_ID: order-service-2
+    depends_on:
+      mysql-order:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8086:8085"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8085/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app-net
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -269,6 +398,10 @@ services:
       product-service-1:
         condition: service_healthy
       product-service-2:
+        condition: service_healthy
+      order-service-1:
+        condition: service_healthy
+      order-service-2:
         condition: service_healthy
     ports:
       - "80:80"
@@ -283,6 +416,7 @@ volumes:
   mysql-data:
   mysql-master-data:
   mysql-slave-data:
+  mysql-order-data:
   redis-data:
 
 networks:
