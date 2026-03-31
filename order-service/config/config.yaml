@@ -1,0 +1,25 @@
+server:
+  port: 8085
+
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: root123
+  dbname: order_db
+  charset: utf8mb4
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: seckill-orders
+  group_id: order-service-group
+
+snowflake:
+  node_id: 1
