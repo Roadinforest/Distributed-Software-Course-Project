@@ -26,17 +26,21 @@ func main() {
 	orderRepo := repository.NewOrderRepository(app.DB)
 
 	// 创建Kafka生产者
-	producer := kafka.NewProducer(app.Config.Kafka.Brokers, app.Config.Kafka.Topic)
+	producer := kafka.NewProducer(app.Config.Kafka.Brokers)
 	defer producer.Close()
 
 	// 创建秒杀服务
 	seckillService := service.NewSeckillService(app.Redis, orderRepo, producer)
 
+	// 创建支付服务
+	paymentService := service.NewPaymentService(app.Redis, orderRepo, producer)
+
 	// 创建处理器
 	seckillHandler := handler.NewSeckillHandler(seckillService)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
 
 	// 创建路由
-	r := router.New(seckillHandler)
+	r := router.New(seckillHandler, paymentHandler)
 
 	// 启动Kafka消费者
 	consumer := kafka.NewConsumer(
