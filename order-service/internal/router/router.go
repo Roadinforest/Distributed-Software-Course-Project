@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func New(seckillHandler *handler.SeckillHandler) *gin.Engine {
+func New(seckillHandler *handler.SeckillHandler, paymentHandler *handler.PaymentHandler) *gin.Engine {
 	r := gin.Default()
 
 	// 健康检查
@@ -32,6 +32,14 @@ func New(seckillHandler *handler.SeckillHandler) *gin.Engine {
 			seckill.GET("/orders/check", seckillHandler.CheckOrder)
 			seckill.POST("/stock/init", seckillHandler.InitStock)
 			seckill.GET("/stock", seckillHandler.GetStock)
+		}
+
+		// 支付相关路由
+		payment := api.Group("/payment")
+		{
+			payment.POST("/pay", paymentHandler.Pay)
+			payment.GET("/info", paymentHandler.GetPaymentByOrderID)
+			payment.POST("/refund", paymentHandler.Refund)
 		}
 	}
 
