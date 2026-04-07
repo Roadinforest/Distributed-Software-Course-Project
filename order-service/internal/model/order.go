@@ -66,3 +66,13 @@ type SeckillResponse struct {
 	Status   string `json:"status"`
 	Message  string `json:"message"`
 }
+
+// StockMessage 库存消息（用于与库存服务通信）
+type StockMessage struct {
+	OrderID   int64  `json:"order_id"`
+	UserID    int64  `json:"user_id"`
+	ProductID int64  `json:"product_id"`
+	Quantity  int    `json:"quantity"`
+	Action    string `json:"action"` // reserve, confirm, cancel
+	Timestamp int64  `json:"timestamp"`
+}
