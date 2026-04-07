@@ -8,19 +8,46 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+
+	"order-service/internal/model"
+)
+
+const (
+	OrderTopic    = "order-events"
+	PaymentTopic  = "payment-events"
+	StockTopic    = "stock-events"
 )
 
 // Producer Kafka生产者
 type Producer struct {
-	writer *kafka.Writer
-	topic  string
+	orderWriter   *kafka.Writer
+	paymentWriter *kafka.Writer
+	stockWriter   *kafka.Writer
 }
 
 // NewProducer 创建Kafka生产者
-func NewProducer(brokers []string, topic string) *Producer {
-	writer := &kafka.Writer{
+func NewProducer(brokers []string) *Producer {
+	orderWriter := &kafka.Writer{
 		Addr:         kafka.TCP(brokers...),
-		Topic:        topic,
+		Topic:        OrderTopic,
+		Balancer:     &kafka.LeastBytes{},
+		BatchSize:    1,
+		BatchTimeout: 10 * time.Millisecond,
+		RequiredAcks: kafka.RequireOne,
+	}
+
+	paymentWriter := &kafka.Writer{
+		Addr:         kafka.TCP(brokers...),
+		Topic:        PaymentTopic,
+		Balancer:     &kafka.LeastBytes{},
+		BatchSize:    1,
+		BatchTimeout: 10 * time.Millisecond,
+		RequiredAcks: kafka.RequireOne,
+	}
+
+	stockWriter := &kafka.Writer{
+		Addr:         kafka.TCP(brokers...),
+		Topic:        StockTopic,
 		Balancer:     &kafka.LeastBytes{},
 		BatchSize:    1,
 		BatchTimeout: 10 * time.Millisecond,
@@ -28,13 +55,14 @@ func NewProducer(brokers []string, topic string) *Producer {
 	}
 
 	return &Producer{
-		writer: writer,
-		topic:  topic,
+		orderWriter:   orderWriter,
+		paymentWriter: paymentWriter,
+		stockWriter:   stockWriter,
 	}
 }
 
-// SendMessage 发送消息
-func (p *Producer) SendMessage(ctx context.Context, key string, value interface{}) error {
+// SendMessage 发送消息到指定topic
+func (p *Producer) sendMessage(ctx context.Context, writer *kafka.Writer, key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("marshal message failed: %w", err)
@@ -45,15 +73,41 @@ func (p *Producer) SendMessage(ctx context.Context, key string, value interface{
 		Value: data,
 	}
 
-	if err := p.writer.WriteMessages(ctx, msg); err != nil {
+	if err := writer.WriteMessages(ctx, msg); err != nil {
 		return fmt.Errorf("write message failed: %w", err)
 	}
 
-	log.Printf("Producer: sent message with key=%s to topic=%s", key, p.topic)
+	log.Printf("Producer: sent message with key=%s to topic=%s", key, writer.Topic)
 	return nil
+}
+
+// SendSeckillMessage 发送秒杀订单消息
+func (p *Producer) SendSeckillMessage(ctx context.Context, key string, msg model.SeckillMessage) error {
+	return p.sendMessage(ctx, p.orderWriter, key, msg)
+}
+
+// SendPaymentMessage 发送支付消息
+func (p *Producer) SendPaymentMessage(ctx context.Context, key string, msg model.PaymentMessage) error {
+	return p.sendMessage(ctx, p.paymentWriter, key, msg)
+}
+
+// SendOrderStatusMessage 发送订单状态更新消息
+func (p *Producer) SendOrderStatusMessage(ctx context.Context, key string, msg model.OrderStatusMessage) error {
+	return p.sendMessage(ctx, p.orderWriter, key, msg)
+}
+
+// SendStockMessage 发送库存消息
+func (p *Producer) SendStockMessage(ctx context.Context, key string, msg model.StockMessage) error {
+	return p.sendMessage(ctx, p.stockWriter, key, msg)
 }
 
 // Close 关闭生产者
 func (p *Producer) Close() error {
-	return p.writer.Close()
+	if err := p.orderWriter.Close(); err != nil {
+		return err
+	}
+	if err := p.paymentWriter.Close(); err != nil {
+		return err
+	}
+	return p.stockWriter.Close()
 }
