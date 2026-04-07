@@ -387,6 +387,97 @@ services:
     networks:
       - app-net
 
+  # 库存数据库
+  mysql-stock:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: stock_db
+    ports:
+      - "3311:3306"
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - mysql-stock-data:/var/lib/mysql
+    networks:
+      - app-net
+
+  # 库存服务1
+  stock-service-1:
+    build:
+      context: ./stock-service
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    restart: unless-stopped
+    environment:
+      STOCK_SVC_DATABASE_HOST: mysql-stock
+      STOCK_SVC_DATABASE_PORT: 3306
+      STOCK_SVC_DATABASE_USER: root
+      STOCK_SVC_DATABASE_PASSWORD: root123
+      STOCK_SVC_DATABASE_DBNAME: stock_db
+      STOCK_SVC_REDIS_HOST: redis
+      STOCK_SVC_REDIS_PORT: 6379
+      STOCK_SVC_KAFKA_BROKERS: kafka:9092
+      INSTANCE_ID: stock-service-1
+    depends_on:
+      mysql-stock:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8087:8087"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8087/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app-net
+
+  # 库存服务2
+  stock-service-2:
+    build:
+      context: ./stock-service
+      args:
+        GOPROXY: https://goproxy.cn,direct
+    restart: unless-stopped
+    environment:
+      STOCK_SVC_DATABASE_HOST: mysql-stock
+      STOCK_SVC_DATABASE_PORT: 3306
+      STOCK_SVC_DATABASE_USER: root
+      STOCK_SVC_DATABASE_PASSWORD: root123
+      STOCK_SVC_DATABASE_DBNAME: stock_db
+      STOCK_SVC_REDIS_HOST: redis
+      STOCK_SVC_REDIS_PORT: 6379
+      STOCK_SVC_KAFKA_BROKERS: kafka:9092
+      INSTANCE_ID: stock-service-2
+    depends_on:
+      mysql-stock:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8088:8087"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8087/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app-net
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -403,6 +494,10 @@ services:
         condition: service_healthy
       order-service-2:
         condition: service_healthy
+      stock-service-1:
+        condition: service_healthy
+      stock-service-2:
+        condition: service_healthy
     ports:
       - "80:80"
     volumes:
@@ -417,6 +512,7 @@ volumes:
   mysql-master-data:
   mysql-slave-data:
   mysql-order-data:
+  mysql-stock-data:
   redis-data:
 
 networks:
