@@ -146,7 +146,7 @@ func (s *SeckillService) Seckill(ctx context.Context, req *model.SeckillRequest)
 	}
 
 	msgKey := strconv.FormatInt(productID, 10) + "-" + strconv.FormatInt(userID, 10)
-	if err := s.producer.SendMessage(ctx, msgKey, seckillMsg); err != nil {
+	if err := s.producer.SendSeckillMessage(ctx, msgKey, seckillMsg); err != nil {
 		// 回滚幂等性key和库存
 		s.redis.Del(ctx, idempotentKey)
 		s.redis.Incr(ctx, stockKey)
