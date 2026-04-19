@@ -1,0 +1,221 @@
+# Kong Declarative Configuration
+# 替代Spring Cloud Gateway的服务网关
+# 使用Kong内置的健康检查、限流、缓存实现流量治理
+
+_format_version: "3.0"
+
+#------------------------------------------
+# 上游服务定义 (Upstreams) - 实现负载均衡
+#------------------------------------------
+upstreams:
+  # 用户服务上游
+  - name: user-service-upstream
+    targets:
+      - target: user-service-1:8081
+        weight: 100
+      - target: user-service-2:8081
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /healthz
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  # 商品服务上游
+  - name: product-service-upstream
+    targets:
+      - target: product-service-1:8083
+        weight: 100
+      - target: product-service-2:8083
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /healthz
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  # 订单服务上游
+  - name: order-service-upstream
+    targets:
+      - target: order-service-1:8085
+        weight: 100
+      - target: order-service-2:8085
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /healthz
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  # 库存服务上游
+  - name: stock-service-upstream
+    targets:
+      - target: stock-service-1:8087
+        weight: 100
+      - target: stock-service-2:8087
+        weight: 100
+    healthchecks:
+      active:
+        type: http
+        http_path: /healthz
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+#------------------------------------------
+# 服务定义 (Services) - 使用上游实现负载均衡
+#------------------------------------------
+services:
+  # 用户服务
+  - name: user-service
+    host: user-service-upstream
+    port: 8081
+    protocol: http
+    routes:
+      - name: user-route
+        paths:
+          - /api/v1/users
+        strip_path: false
+        preserve_host: true
+    plugins:
+      # 限流插件
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+      # 缓存插件
+      - name: proxy-cache
+        config:
+          response_code:
+            - 200
+          request_method:
+            - GET
+          content_type:
+            - application/json
+          ttl: 60
+          strategy: memory
+
+  # 商品服务
+  - name: product-service
+    host: product-service-upstream
+    port: 8083
+    protocol: http
+    routes:
+      - name: product-route
+        paths:
+          - /api/v1/products
+        strip_path: false
+        preserve_host: true
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+      - name: proxy-cache
+        config:
+          response_code:
+            - 200
+          request_method:
+            - GET
+          content_type:
+            - application/json
+          ttl: 60
+          strategy: memory
+
+  # 订单服务
+  - name: order-service
+    host: order-service-upstream
+    port: 8085
+    protocol: http
+    routes:
+      - name: order-route
+        paths:
+          - /api/v1/orders
+        strip_path: false
+        preserve_host: true
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 50
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+
+  # 库存服务
+  - name: stock-service
+    host: stock-service-upstream
+    port: 8087
+    protocol: http
+    routes:
+      - name: stock-route
+        paths:
+          - /api/v1/stock
+        strip_path: false
+        preserve_host: true
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+
+  # 健康检查路由
+  - name: health-check
+    host: user-service-upstream
+    port: 8081
+    protocol: http
+    routes:
+      - name: health-route
+        paths:
+          - /healthz
+        strip_path: false
+
+#------------------------------------------
+# 全局插件
+#------------------------------------------
+plugins:
+  # 响应压缩
+  - name: gzip
+    config:
+      enabled: true
+      mime_types:
+        - application/json
+        - text/html
+        - text/plain
+        - text/css
+        - text/javascript
+
+  # 请求ID追踪
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid#node
+      echo_downstream: true
+
+  # 访问日志
+  - name: access-log
+    config:
+      log_json: true
